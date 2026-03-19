@@ -1,0 +1,14 @@
+# Local env file with API keys – do not commit
+.env
+
+# Build outputs
+target/
+**/target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store

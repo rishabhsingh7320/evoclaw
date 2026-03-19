@@ -1,0 +1,7 @@
+Weather for Mumbai today (Mar 15, 2026):
+Temperature: 33°C (91°F)
+Condition: Light rain expected
+Humidity: 61%
+Wind: 10 km/h
+UV Index: 9
+Forecast: High of 35°C, Low of 28°C

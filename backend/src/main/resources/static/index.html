@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OpenClaw Demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 0; background: #0f172a; color: #e5e7eb; }
+    .container { display: flex; flex-direction: column; max-width: 1200px; margin: 0 auto; padding: 24px; gap: 16px; }
+    .header { font-size: 1.5rem; font-weight: 600; margin-bottom: 8px; }
+    .row { display: flex; gap: 16px; align-items: flex-start; }
+    .col { flex: 1; background: #020617; border-radius: 12px; padding: 16px; border: 1px solid #1f2937; min-height: 200px; }
+    textarea { width: 100%; min-height: 80px; border-radius: 8px; border: 1px solid #4b5563; background: #020617; color: #e5e7eb; padding: 8px; resize: vertical; }
+    button { padding: 8px 16px; border-radius: 999px; border: none; background: #22c55e; color: #022c22; font-weight: 600; cursor: pointer; margin-top: 8px; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; font-size: 0.75rem; border: 1px solid #334155; margin-right: 4px; }
+    .badge.kind-run_started { border-color: #22c55e; color: #bbf7d0; }
+    .badge.kind-step_started { border-color: #38bdf8; color: #e0f2fe; }
+    .badge.kind-step_finished { border-color: #a855f7; color: #f3e8ff; }
+    .badge.kind-tool_started { border-color: #f97316; color: #ffedd5; }
+    .badge.kind-tool_finished { border-color: #facc15; color: #fef9c3; }
+    .badge.kind-assistant_message { border-color: #22c55e; color: #bbf7d0; }
+    .event { padding: 4px 0; border-bottom: 1px solid #020617; font-size: 0.85rem; }
+    .event:last-child { border-bottom: none; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    .pill { border-radius: 999px; padding: 2px 8px; border: 1px solid #374151; font-size: 0.75rem; }
+    .label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: #9ca3af; }
+    .messages { max-height: 280px; overflow-y: auto; }
+    .timeline { max-height: 280px; overflow-y: auto; }
+    .event-payload { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; margin-left: 4px; white-space: pre-wrap; word-break: break-all; max-height: 80px; overflow-y: auto; }
+    .how-it-works { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.85rem; color: #94a3b8; }
+    .how-it-works summary { cursor: pointer; font-weight: 600; color: #e2e8f0; }
+    .how-it-works ol { margin: 8px 0 0 20px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div>
+    <div class="header">OpenClaw-style Orchestrator Demo</div>
+    <div style="font-size:0.9rem;color:#9ca3af;">Type a query and watch how it becomes a run, steps, tool calls, and events.</div>
+    <details class="how-it-works">
+      <summary>How it works (behind the scenes)</summary>
+      <ol>
+        <li><strong>You send a query</strong> → API creates a <em>session</em> (if new) and a <em>run</em>, saves your message, and starts the orchestrator in the background.</li>
+        <li><strong>Orchestrator loop</strong> → For each step, the <em>Manager</em> agent decides: answer directly (RESPOND) or call a tool (e.g. search, math, file).</li>
+        <li><strong>Tool calls</strong> → If a tool is chosen, it runs (e.g. fake search, calculation); the result is stored and then turned into an assistant reply.</li>
+        <li><strong>Events</strong> → Every action (run_started, step_started, tool_started, tool_finished, assistant_message, run_finished) is written to the DB and pushed over WebSocket to this page.</li>
+        <li><strong>Conversation</strong> → When an <em>assistant_message</em> event is received, its content is shown in the left panel.</li>
+      </ol>
+    </details>
+  </div>
+  <div>
+    <div class="label">New query</div>
+    <textarea id="input" placeholder="Ask me something that needs search or calculation..."></textarea>
+    <button id="runBtn">Run</button>
+    <div style="margin-top:4px;font-size:0.8rem;color:#9ca3af;">
+      Session: <span id="sessionId" class="mono">-</span> · Run: <span id="runId" class="mono">-</span> · Status: <span id="status" class="mono">idle</span>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col">
+      <div class="label">Conversation</div>
+      <div id="messages" class="messages"></div>
+    </div>
+    <div class="col">
+      <div class="label">Internal timeline</div>
+      <div id="timeline" class="timeline"></div>
+    </div>
+  </div>
+</div>
+<script>
+  const runBtn = document.getElementById('runBtn');
+  const inputEl = document.getElementById('input');
+  const sessionEl = document.getElementById('sessionId');
+  const runEl = document.getElementById('runId');
+  const statusEl = document.getElementById('status');
+  const messagesEl = document.getElementById('messages');
+  const timelineEl = document.getElementById('timeline');
+
+  let sessionId = null;
+  let runId = null;
+  let ws = null;
+
+  function addMessage(role, content) {
+    const row = document.createElement('div');
+    row.className = 'event';
+    row.innerHTML = '<span class="pill">' + role + '</span> ' +
+      '<span>' + content.replace(/</g, '&lt;') + '</span>';
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addEvent(ev) {
+    const row = document.createElement('div');
+    row.className = 'event';
+    const badge = document.createElement('span');
+    badge.className = 'badge kind-' + (ev.kind || 'event');
+    badge.textContent = ev.kind || 'event';
+    row.appendChild(badge);
+    const meta = document.createElement('span');
+    meta.style.marginLeft = '4px';
+    meta.className = 'mono';
+    const stepIdx = ev.stepIndex != null ? ev.stepIndex : (ev.step && ev.step.stepIndex != null ? ev.step.stepIndex : '-');
+    meta.textContent = 'step=' + stepIdx + '  at=' + (ev.createdAt || '');
+    row.appendChild(meta);
+    if (ev.payloadJson) {
+      const payloadEl = document.createElement('div');
+      payloadEl.className = 'event-payload';
+      try {
+        const p = JSON.parse(ev.payloadJson);
+        payloadEl.textContent = JSON.stringify(p, null, 2);
+      } catch (_) {
+        payloadEl.textContent = ev.payloadJson;
+      }
+      row.appendChild(payloadEl);
+    }
+    timelineEl.appendChild(row);
+    timelineEl.scrollTop = timelineEl.scrollHeight;
+  }
+
+  runBtn.onclick = async () => {
+    const text = inputEl.value.trim();
+    if (!text) return;
+    runBtn.disabled = true;
+    statusEl.textContent = 'submitting';
+    addMessage('user', text);
+    const body = { message: text };
+    if (sessionId) body.sessionId = String(sessionId);
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    sessionId = data.sessionId;
+    runId = data.runId;
+    sessionEl.textContent = sessionId;
+    runEl.textContent = runId;
+    statusEl.textContent = 'running';
+    openWebSocket();
+    runBtn.disabled = false;
+  };
+
+  function openWebSocket() {
+    if (!runId) return;
+    if (ws) {
+      ws.close();
+    }
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(proto + '://' + location.host + '/ws/runs/' + runId);
+    ws.onmessage = (event) => {
+      try {
+        const ev = JSON.parse(event.data);
+        addEvent(ev);
+        if (ev.kind === 'assistant_message') {
+          try {
+            const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : null;
+            if (payload && payload.content) {
+              addMessage('assistant', payload.content);
+            }
+          } catch (_) {}
+        }
+        if (ev.kind === 'run_finished') {
+          statusEl.textContent = 'finished';
+        }
+      } catch (e) {
+        console.warn('Timeline message parse failed', e);
+      }
+    };
+    ws.onerror = () => { statusEl.textContent = 'ws error'; };
+    ws.onclose = () => {};
+  }
+</script>
+</body>
+</html>
+

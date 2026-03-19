@@ -1,0 +1,10 @@
+1. Milk
+2. Eggs
+3. Bread
+4. Apples
+5. Chicken
+6. Rice
+7. Broccoli
+8. Cheese
+9. Yogurt
+10. Coffee

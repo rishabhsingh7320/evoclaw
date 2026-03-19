@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>OpenClaw3 – Advanced LLM Task Graph Orchestrator</title>
+  <script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <style>
+    :root { --bg: #0f172a; --card: #020617; --border: #1e293b; --text: #e2e8f0; --muted: #94a3b8; --green: #22c55e; --blue: #3b82f6; --red: #ef4444; --yellow: #facc15; --purple: #a855f7; --orange: #f97316; --cyan: #06b6d4; --pink: #ec4899; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+    .container { max-width: 1500px; margin: 0 auto; padding: 20px; }
+    .header { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; }
+    .version-badge { display: inline-block; background: #1e3a5f; color: var(--cyan); padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700; margin-left: 8px; vertical-align: middle; }
+    .feature-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .feature-tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+    .input-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+    textarea { flex: 1; min-height: 50px; border-radius: 8px; border: 1px solid #4b5563; background: var(--card); color: var(--text); padding: 10px; resize: vertical; font-size: 0.95rem; }
+    button { padding: 10px 20px; border-radius: 999px; border: none; background: var(--green); color: #022c22; font-weight: 700; cursor: pointer; font-size: 0.95rem; white-space: nowrap; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    .meta { font-size: 0.8rem; color: var(--muted); margin-bottom: 16px; font-family: ui-monospace, monospace; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab { padding: 6px 16px; border-radius: 8px 8px 0 0; border: 1px solid var(--border); border-bottom: none; background: var(--card); color: var(--muted); cursor: pointer; font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+    .tab.active { background: #1e293b; color: var(--text); border-color: #334155; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .card-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+    #cy { width: 100%; height: 340px; border-radius: 8px; border: 1px solid var(--border); }
+    .task-list { max-height: 600px; overflow-y: auto; }
+    .task-item { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+    .task-item:last-child { border-bottom: none; }
+    .task-status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .task-status.pending { background: #475569; }
+    .task-status.running { background: var(--blue); }
+    .task-status.completed { background: var(--green); }
+    .task-status.failed { background: var(--red); }
+    .task-title { font-weight: 600; }
+    .task-desc { font-size: 0.78rem; color: var(--muted); margin-top: 2px; font-style: italic; }
+    .task-result { font-size: 0.8rem; color: var(--muted); margin-top: 4px; white-space: pre-wrap; max-height: 80px; overflow-y: auto; background: #0f172a; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); }
+    .step-list { margin-top: 6px; margin-left: 20px; }
+    .step-item { padding: 4px 0; border-left: 2px solid var(--border); padding-left: 10px; margin-bottom: 4px; font-size: 0.78rem; }
+    .step-item.tool_call { border-left-color: var(--orange); }
+    .step-item.complete { border-left-color: var(--green); }
+    .step-item.delegate { border-left-color: var(--purple); }
+    .step-tool { font-weight: 700; color: var(--orange); }
+    .step-complete-label { font-weight: 700; color: var(--green); }
+    .step-delegate-label { font-weight: 700; color: var(--purple); }
+    .step-detail { font-size: 0.72rem; color: #64748b; margin-top: 2px; white-space: pre-wrap; max-height: 80px; overflow-y: auto; background: #0f172a; padding: 4px 6px; border-radius: 4px; }
+    .timeline { max-height: 400px; overflow-y: auto; }
+    .event-row { padding: 4px 0; border-bottom: 1px solid #0f172a; font-size: 0.82rem; }
+    .event-row:last-child { border-bottom: none; }
+    .badge { display: inline-flex; border-radius: 999px; padding: 2px 8px; font-size: 0.7rem; border: 1px solid var(--border); margin-right: 4px; }
+    .badge.run_started, .badge.run_finished { border-color: var(--green); color: #bbf7d0; }
+    .badge.planning_started, .badge.plan_ready { border-color: var(--purple); color: #f3e8ff; }
+    .badge.task_started { border-color: var(--blue); color: #bfdbfe; }
+    .badge.task_step { border-color: var(--orange); color: #ffedd5; }
+    .badge.task_completed { border-color: var(--green); color: #bbf7d0; }
+    .badge.task_failed, .badge.error { border-color: var(--red); color: #fecaca; }
+    .badge.assistant_message { border-color: var(--green); color: #bbf7d0; }
+    .badge.llm_call { border-color: var(--cyan); color: #cffafe; }
+    .badge.llm_response { border-color: var(--cyan); color: #a5f3fc; }
+    .badge.hook_before_tool { border-color: var(--pink); color: #fce7f3; }
+    .badge.loop_detection_warning { border-color: var(--yellow); color: #fef9c3; }
+    .badge.compaction_applied { border-color: var(--yellow); color: #fef9c3; }
+    .badge.sub_run_started, .badge.sub_run_finished { border-color: var(--purple); color: #f3e8ff; }
+    .event-meta { font-family: ui-monospace, monospace; font-size: 0.75rem; color: var(--muted); margin-left: 4px; }
+    .event-payload { font-size: 0.72rem; color: #64748b; margin-top: 2px; white-space: pre-wrap; max-height: 80px; overflow-y: auto; word-break: break-all; }
+    .conversation { max-height: 200px; overflow-y: auto; }
+    .msg-row { padding: 4px 0; font-size: 0.85rem; }
+    .msg-role { display: inline-block; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--border); font-size: 0.72rem; margin-right: 4px; }
+    .error-banner { background: #450a0a; border: 1px solid var(--red); border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; font-size: 0.9rem; color: #fca5a5; display: none; }
+    .error-banner strong { color: #fecaca; }
+    .full-width { grid-column: 1 / -1; }
+    .db-section { margin-bottom: 16px; }
+    .db-table-name { font-size: 0.82rem; font-weight: 700; color: var(--cyan); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .db-table-name .count { font-size: 0.7rem; background: #164e63; color: #cffafe; padding: 1px 6px; border-radius: 999px; font-weight: 400; }
+    .db-table { width: 100%; border-collapse: collapse; font-size: 0.72rem; font-family: ui-monospace, monospace; margin-bottom: 12px; }
+    .db-table th { background: #1e293b; color: var(--muted); padding: 4px 8px; text-align: left; border: 1px solid var(--border); font-weight: 600; white-space: nowrap; }
+    .db-table td { padding: 4px 8px; border: 1px solid var(--border); color: var(--text); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .db-table tr:hover td { background: #1e293b; }
+    .plan-json { white-space: pre-wrap; font-size: 0.78rem; font-family: ui-monospace, monospace; color: var(--muted); background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 12px; max-height: 300px; overflow-y: auto; }
+    .context-block { background: #0f172a; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .context-label { font-size: 0.72rem; text-transform: uppercase; color: var(--cyan); font-weight: 700; margin-bottom: 4px; letter-spacing: 0.05em; }
+    .context-text { font-size: 0.78rem; font-family: ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+    .llm-call-card { background: var(--card); border: 1px solid #164e63; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .llm-call-header { font-size: 0.78rem; font-weight: 700; color: var(--cyan); margin-bottom: 6px; }
+    details summary { cursor: pointer; font-weight: 600; color: var(--muted); font-size: 0.85rem; }
+    details { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+    details ol { margin: 8px 0 0 20px; line-height: 1.7; font-size: 0.85rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">OpenClaw3 <span class="version-badge">v3</span></div>
+  <div class="subtitle">Advanced orchestrator with exec, memory, hooks, loop-detection, compaction, sub-runs, and tool policies.</div>
+
+  <div class="feature-tags">
+    <span class="feature-tag">Exec Tool</span>
+    <span class="feature-tag">Memory Tool</span>
+    <span class="feature-tag">Tool Allow/Deny</span>
+    <span class="feature-tag">Loop Detection</span>
+    <span class="feature-tag">Hooks</span>
+    <span class="feature-tag">Context Compaction</span>
+    <span class="feature-tag">Sub-Runs</span>
+    <span class="feature-tag">Per-Session Queue</span>
+    <span class="feature-tag">Parallel Exec (opt)</span>
+  </div>
+
+  <details>
+    <summary>How it works (behind the scenes)</summary>
+    <ol>
+      <li><strong>Submit a query</strong> — API creates a Session, Message, and Run. Per-session queue rejects if another run is active.</li>
+      <li><strong>Planning phase</strong> — System prompt + query → GPT-4o-mini → JSON DAG of tasks.</li>
+      <li><strong>Tool policy</strong> — Only tools allowed by profile/allow/deny config are available to the LLM.</li>
+      <li><strong>Execution phase</strong> — Tasks run in topological order (or parallel by depth). For each task, a mini agent loop runs.</li>
+      <li><strong>Hooks fire</strong> — <code>before_tool_call</code> and <code>after_tool_call</code> hooks run around every tool invocation.</li>
+      <li><strong>Loop detection</strong> — If the LLM calls the same tool with the same args 3+ times, a warning is injected.</li>
+      <li><strong>Context compaction</strong> — When prior-task context exceeds the budget, older results are summarized via LLM.</li>
+      <li><strong>Sub-runs</strong> — LLM can delegate a subtask to a child run (no nesting). Child results are injected back.</li>
+      <li><strong>Memory</strong> — Key-value store persists across runs in the same session.</li>
+      <li><strong>Events stream live</strong> — Every action is stored in DB and pushed over WebSocket.</li>
+    </ol>
+  </details>
+
+  <div class="input-row">
+    <textarea id="input" placeholder="e.g. Run ls -la in the sandbox and remember the output for later"></textarea>
+    <button id="runBtn">Run</button>
+  </div>
+  <div class="meta">
+    Session: <span id="sessionId">-</span> &middot; Run: <span id="runId">-</span> &middot; Phase: <span id="phase">idle</span>
+  </div>
+  <div id="errorBanner" class="error-banner"></div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="live">Live View</div>
+    <div class="tab" data-tab="tasks">Tasks & Steps</div>
+    <div class="tab" data-tab="context">LLM Prompts & Context</div>
+    <div class="tab" data-tab="db">DB Inspector</div>
+    <div class="tab" data-tab="plan">Plan JSON</div>
+  </div>
+
+  <div id="tab-live" class="tab-content active">
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">Task Graph (live)</div>
+        <div id="cy"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Internal Timeline</div>
+        <div id="timeline" class="timeline"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Task Status</div>
+        <div id="taskListLive" class="task-list"><span style="color:var(--muted);font-size:0.85rem;">No tasks yet. Submit a query to begin.</span></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Conversation</div>
+        <div id="conversation" class="conversation"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-tasks" class="tab-content">
+    <div class="card">
+      <div class="card-title">All Tasks with Tool Call Steps</div>
+      <div id="taskListDetail" class="task-list"><span style="color:var(--muted);font-size:0.85rem;">Run a query first, then switch here to see task details.</span></div>
+    </div>
+  </div>
+
+  <div id="tab-context" class="tab-content">
+    <div class="card">
+      <div class="card-title">LLM Calls &amp; Context Flow</div>
+      <div id="llmCalls"><span style="color:var(--muted);font-size:0.85rem;">LLM prompts and responses will appear here during execution.</span></div>
+    </div>
+  </div>
+
+  <div id="tab-db" class="tab-content">
+    <div class="card">
+      <div class="card-title">Database Snapshot for Current Run</div>
+      <button id="refreshDbBtn" style="font-size:0.75rem;padding:4px 12px;margin-bottom:12px;border-radius:6px;">Refresh DB</button>
+      <div id="dbContent"><span style="color:var(--muted);font-size:0.85rem;">Submit a query, then click Refresh DB to see all table rows.</span></div>
+    </div>
+  </div>
+
+  <div id="tab-plan" class="tab-content">
+    <div class="card">
+      <div class="card-title">Raw Plan JSON (LLM Output)</div>
+      <div id="planJson" class="plan-json">No plan yet. Submit a query to generate a task plan.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const runBtn = document.getElementById('runBtn');
+const inputEl = document.getElementById('input');
+const sessionEl = document.getElementById('sessionId');
+const runEl = document.getElementById('runId');
+const phaseEl = document.getElementById('phase');
+const taskListLiveEl = document.getElementById('taskListLive');
+const taskListDetailEl = document.getElementById('taskListDetail');
+const timelineEl = document.getElementById('timeline');
+const convoEl = document.getElementById('conversation');
+const errorBanner = document.getElementById('errorBanner');
+const llmCallsEl = document.getElementById('llmCalls');
+const dbContentEl = document.getElementById('dbContent');
+const planJsonEl = document.getElementById('planJson');
+const refreshDbBtn = document.getElementById('refreshDbBtn');
+
+function showError(msg) {
+  errorBanner.innerHTML = '<strong>Error:</strong> ' + esc(msg);
+  errorBanner.style.display = 'block';
+  phaseEl.textContent = 'failed';
+  runBtn.disabled = false;
+}
+function hideError() { errorBanner.style.display = 'none'; }
+
+let sessionId = null, runId = null, ws = null;
+let cy = null;
+const taskMap = {};
+const llmCallLog = [];
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'tasks' && runId) fetchRunDetail();
+    if (tab.dataset.tab === 'db' && runId) fetchDbSnapshot();
+    if (tab.dataset.tab === 'plan' && runId) fetchRunDetail();
+  });
+});
+
+function initGraph() {
+  if (cy) cy.destroy();
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    style: [
+      { selector: 'node', style: {
+        'label': 'data(label)', 'text-wrap': 'wrap', 'text-max-width': '120px',
+        'background-color': '#475569', 'color': '#e2e8f0', 'font-size': '11px',
+        'text-valign': 'center', 'text-halign': 'center',
+        'width': 140, 'height': 50, 'shape': 'roundrectangle',
+        'border-width': 2, 'border-color': '#334155'
+      }},
+      { selector: 'node[status="running"]', style: { 'background-color': '#1d4ed8', 'border-color': '#3b82f6' }},
+      { selector: 'node[status="completed"]', style: { 'background-color': '#166534', 'border-color': '#22c55e' }},
+      { selector: 'node[status="failed"]', style: { 'background-color': '#991b1b', 'border-color': '#ef4444' }},
+      { selector: 'edge', style: {
+        'width': 2, 'line-color': '#475569', 'target-arrow-color': '#475569',
+        'target-arrow-shape': 'triangle', 'curve-style': 'bezier'
+      }}
+    ],
+    layout: { name: 'grid' },
+    userZoomingEnabled: false, userPanningEnabled: true
+  });
+}
+
+function buildGraph(tasks) {
+  if (!cy) initGraph();
+  cy.elements().remove();
+  const elements = [];
+  for (const t of tasks) {
+    taskMap[t.externalId] = t;
+    elements.push({ data: { id: t.externalId, label: t.title, status: t.status || 'pending' } });
+    if (t.dependsOn) {
+      for (const dep of t.dependsOn) {
+        elements.push({ data: { source: dep, target: t.externalId } });
+      }
+    }
+  }
+  cy.add(elements);
+  cy.layout({ name: 'dagre', rankDir: 'TB', nodeSep: 30, rankSep: 60, padding: 20 }).run();
+  cy.fit(undefined, 30);
+}
+
+function updateTaskStatus(extId, status, resultText) {
+  if (taskMap[extId]) {
+    taskMap[extId].status = status;
+    if (resultText) taskMap[extId].resultText = resultText;
+  }
+  if (cy) {
+    const node = cy.getElementById(extId);
+    if (node.length) node.data('status', status);
+  }
+  renderTaskListLive();
+}
+
+function renderTaskListLive() {
+  const ids = Object.keys(taskMap);
+  if (ids.length === 0) return;
+  taskListLiveEl.innerHTML = '';
+  for (const id of ids) {
+    const t = taskMap[id];
+    const div = document.createElement('div');
+    div.className = 'task-item';
+    div.innerHTML = '<span class="task-status ' + (t.status || 'pending') + '"></span>' +
+      '<span class="task-title">' + esc(t.title) + '</span>' +
+      ' <span style="color:var(--muted);font-size:0.75rem;">(' + (t.status || 'pending') + ')</span>';
+    if (t.description) {
+      const desc = document.createElement('div');
+      desc.className = 'task-desc';
+      desc.textContent = t.description;
+      div.appendChild(desc);
+    }
+    if (t.resultText) {
+      const r = document.createElement('div');
+      r.className = 'task-result';
+      r.textContent = t.resultText;
+      div.appendChild(r);
+    }
+    taskListLiveEl.appendChild(div);
+  }
+}
+
+function renderTaskDetail(tasks) {
+  taskListDetailEl.innerHTML = '';
+  if (!tasks || tasks.length === 0) {
+    taskListDetailEl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">No tasks yet.</span>';
+    return;
+  }
+  for (const t of tasks) {
+    const div = document.createElement('div');
+    div.className = 'task-item';
+    div.style.padding = '10px 0';
+    let html = '<span class="task-status ' + (t.status || 'pending') + '"></span>' +
+      '<strong>' + esc(t.externalId) + '</strong>: ' +
+      '<span class="task-title">' + esc(t.title) + '</span>' +
+      ' <span style="color:var(--muted);font-size:0.75rem;">(' + (t.status || 'pending') + ')</span>';
+    if (t.description) html += '<div class="task-desc">' + esc(t.description) + '</div>';
+    if (t.dependsOn && t.dependsOn.length > 0) html += '<div style="font-size:0.75rem;color:var(--purple);margin-top:2px;">Depends on: ' + t.dependsOn.join(', ') + '</div>';
+    if (t.resultText) html += '<div class="task-result">' + esc(t.resultText) + '</div>';
+    if (t.steps && t.steps.length > 0) {
+      html += '<div class="step-list">';
+      for (const s of t.steps) {
+        const stepClass = s.kind === 'tool_call' ? 'tool_call' : s.kind === 'delegate' ? 'delegate' : 'complete';
+        html += '<div class="step-item ' + stepClass + '">';
+        if (s.kind === 'tool_call') {
+          html += '<span class="step-tool">TOOL: ' + esc(s.toolName) + '</span> (step ' + s.stepIndex + ')';
+          if (s.argumentsJson) html += '<div class="step-detail"><strong>Args:</strong> ' + formatJson(s.argumentsJson) + '</div>';
+          if (s.resultJson) html += '<div class="step-detail"><strong>Result:</strong> ' + formatJson(s.resultJson) + '</div>';
+        } else if (s.kind === 'delegate') {
+          html += '<span class="step-delegate-label">DELEGATE (Sub-Run)</span> (step ' + s.stepIndex + ')';
+          if (s.argumentsJson) html += '<div class="step-detail"><strong>Sub-Query:</strong> ' + formatJson(s.argumentsJson) + '</div>';
+          if (s.resultJson) html += '<div class="step-detail"><strong>Sub-Run Result:</strong> ' + esc(s.resultJson) + '</div>';
+        } else {
+          html += '<span class="step-complete-label">COMPLETE</span> (step ' + s.stepIndex + ')';
+          if (s.responseText) html += '<div class="step-detail">' + esc(s.responseText) + '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+    div.innerHTML = html;
+    taskListDetailEl.appendChild(div);
+  }
+}
+
+function addLlmCall(ev) {
+  const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : {};
+  llmCallLog.push({ kind: ev.kind, payload, taskExternalId: ev.taskExternalId, time: ev.createdAt });
+  renderLlmCalls();
+}
+
+function renderLlmCalls() {
+  if (llmCallLog.length === 0) {
+    llmCallsEl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">No LLM calls yet.</span>';
+    return;
+  }
+  llmCallsEl.innerHTML = '';
+  for (const entry of llmCallLog) {
+    const card = document.createElement('div');
+    card.className = 'llm-call-card';
+    let header = '';
+    if (entry.kind === 'llm_call') {
+      const taskLabel = entry.taskExternalId ? ' [' + entry.taskExternalId + ']' : '';
+      header = '<div class="llm-call-header">LLM CALL' + esc(taskLabel) + ' — ' + esc(entry.payload.phase || '') + (entry.payload.step !== undefined ? ' step ' + entry.payload.step : '') + '</div>';
+    } else {
+      const taskLabel = entry.taskExternalId ? ' [' + entry.taskExternalId + ']' : '';
+      header = '<div class="llm-call-header" style="color:var(--green);">LLM RESPONSE' + esc(taskLabel) + ' — ' + esc(entry.payload.phase || '') + (entry.payload.step !== undefined ? ' step ' + entry.payload.step : '') + '</div>';
+    }
+    let body = '';
+    if (entry.kind === 'llm_call') {
+      if (entry.payload.systemPrompt) body += '<div class="context-block"><div class="context-label">System Prompt (excerpt)</div><div class="context-text">' + esc(entry.payload.systemPrompt) + '</div></div>';
+      if (entry.payload.userPrompt) body += '<div class="context-block"><div class="context-label">User Prompt (what the LLM sees)</div><div class="context-text">' + esc(entry.payload.userPrompt) + '</div></div>';
+    } else {
+      if (entry.payload.rawResponse) body += '<div class="context-block"><div class="context-label">LLM Raw Response</div><div class="context-text">' + formatJson(entry.payload.rawResponse) + '</div></div>';
+      if (entry.payload.decision) body += '<div class="context-block"><div class="context-label">LLM Decision</div><div class="context-text">' + formatJson(entry.payload.decision) + '</div></div>';
+    }
+    card.innerHTML = header + body;
+    llmCallsEl.appendChild(card);
+  }
+  llmCallsEl.scrollTop = llmCallsEl.scrollHeight;
+}
+
+function addEvent(ev) {
+  const row = document.createElement('div');
+  row.className = 'event-row';
+  const badge = document.createElement('span');
+  badge.className = 'badge ' + (ev.kind || 'event');
+  badge.textContent = ev.kind || 'event';
+  row.appendChild(badge);
+  if (ev.taskExternalId) {
+    const tag = document.createElement('span');
+    tag.className = 'event-meta';
+    tag.textContent = '[' + ev.taskExternalId + ']';
+    row.appendChild(tag);
+  }
+  const ts = document.createElement('span');
+  ts.className = 'event-meta';
+  ts.textContent = ev.createdAt ? ev.createdAt.split('T')[1] : '';
+  row.appendChild(ts);
+
+  const skipPayloadKinds = ['llm_call', 'llm_response'];
+  if (ev.payloadJson && !skipPayloadKinds.includes(ev.kind)) {
+    const p = document.createElement('div');
+    p.className = 'event-payload';
+    try { p.textContent = JSON.stringify(JSON.parse(ev.payloadJson), null, 2); }
+    catch(_) { p.textContent = ev.payloadJson; }
+    row.appendChild(p);
+  }
+  if (ev.kind === 'llm_call' || ev.kind === 'llm_response') {
+    const p = document.createElement('div');
+    p.className = 'event-payload';
+    const payload = JSON.parse(ev.payloadJson || '{}');
+    p.textContent = ev.kind === 'llm_call'
+      ? '[phase=' + (payload.phase || '?') + (payload.taskId ? ', task=' + payload.taskId : '') + '] Sending prompt to LLM...'
+      : '[phase=' + (payload.phase || '?') + '] LLM responded';
+    row.appendChild(p);
+  }
+  timelineEl.appendChild(row);
+  timelineEl.scrollTop = timelineEl.scrollHeight;
+}
+
+function addMessage(role, content) {
+  const div = document.createElement('div');
+  div.className = 'msg-row';
+  div.innerHTML = '<span class="msg-role">' + role + '</span>' + esc(content);
+  convoEl.appendChild(div);
+  convoEl.scrollTop = convoEl.scrollHeight;
+}
+
+function esc(s) { return s ? s.replace(/</g, '&lt;').replace(/>/g, '&gt;') : ''; }
+
+function formatJson(s) {
+  if (!s) return '';
+  try {
+    const obj = typeof s === 'string' ? JSON.parse(s) : s;
+    return esc(JSON.stringify(obj, null, 2));
+  } catch(_) { return esc(s); }
+}
+
+runBtn.onclick = async () => {
+  const text = inputEl.value.trim();
+  if (!text) return;
+  runBtn.disabled = true;
+  hideError();
+  phaseEl.textContent = 'submitting...';
+  Object.keys(taskMap).forEach(k => delete taskMap[k]);
+  taskListLiveEl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">Planning...</span>';
+  taskListDetailEl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">Waiting for run to complete...</span>';
+  timelineEl.innerHTML = '';
+  convoEl.innerHTML = '';
+  llmCallLog.length = 0;
+  llmCallsEl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">Waiting for LLM calls...</span>';
+  planJsonEl.textContent = 'Generating plan...';
+  dbContentEl.innerHTML = '<span style="color:var(--muted);font-size:0.85rem;">Waiting for data...</span>';
+  initGraph();
+  addMessage('user', text);
+
+  const body = { message: text };
+  if (sessionId) body.sessionId = String(sessionId);
+
+  try {
+    const res = await fetch('/api/query', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (res.status === 409) {
+      const errData = await res.json();
+      showError(errData.error || 'A run is already active for this session.');
+      return;
+    }
+    const data = await res.json();
+    sessionId = data.sessionId;
+    runId = data.runId;
+    sessionEl.textContent = sessionId;
+    runEl.textContent = runId;
+    phaseEl.textContent = 'planning';
+    openWebSocket();
+  } catch(e) {
+    showError('Failed to submit query: ' + e.message);
+  }
+  runBtn.disabled = false;
+};
+
+function openWebSocket() {
+  if (!runId) return;
+  if (ws) ws.close();
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(proto + '://' + location.host + '/ws/runs/' + runId);
+  ws.onmessage = (event) => {
+    try {
+      const ev = JSON.parse(event.data);
+      addEvent(ev);
+      if (ev.kind === 'llm_call' || ev.kind === 'llm_response') addLlmCall(ev);
+      if (ev.kind === 'planning_started') phaseEl.textContent = 'planning';
+      if (ev.kind === 'plan_ready') { phaseEl.textContent = 'executing'; fetchAndBuildGraph(); fetchPlanJson(); }
+      if (ev.kind === 'task_started') updateTaskStatus(ev.taskExternalId, 'running');
+      if (ev.kind === 'task_completed') {
+        const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : {};
+        updateTaskStatus(ev.taskExternalId, 'completed', payload.result || '');
+      }
+      if (ev.kind === 'task_failed') {
+        const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : {};
+        updateTaskStatus(ev.taskExternalId, 'failed', payload.error || 'failed');
+      }
+      if (ev.kind === 'error') {
+        const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : {};
+        showError(payload.message || 'An unknown error occurred');
+        taskListLiveEl.innerHTML = '<span style="color:var(--red);font-size:0.85rem;">Run failed. Enter a new query to try again.</span>';
+      }
+      if (ev.kind === 'assistant_message') {
+        const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : {};
+        if (payload.content) addMessage('assistant', payload.content);
+      }
+      if (ev.kind === 'run_finished') {
+        const payload = ev.payloadJson ? JSON.parse(ev.payloadJson) : {};
+        phaseEl.textContent = payload.phase || 'finished';
+        runBtn.disabled = false;
+        fetchRunDetail();
+      }
+    } catch (e) { console.warn('WS parse error', e); }
+  };
+  ws.onerror = () => { phaseEl.textContent = 'ws error'; runBtn.disabled = false; };
+  ws.onclose = () => { runBtn.disabled = false; };
+}
+
+async function fetchAndBuildGraph() {
+  if (!runId) return;
+  try {
+    const res = await fetch('/api/runs/' + runId);
+    const data = await res.json();
+    if (data.tasks && data.tasks.length > 0) { buildGraph(data.tasks); renderTaskListLive(); }
+  } catch(e) { console.warn('Failed to fetch run detail', e); }
+}
+
+async function fetchRunDetail() {
+  if (!runId) return;
+  try {
+    const res = await fetch('/api/runs/' + runId);
+    const data = await res.json();
+    if (data.tasks) {
+      for (const t of data.tasks) {
+        if (taskMap[t.externalId]) {
+          taskMap[t.externalId].status = t.status;
+          taskMap[t.externalId].resultText = t.resultText;
+          taskMap[t.externalId].description = t.description;
+        }
+      }
+      renderTaskListLive();
+      renderTaskDetail(data.tasks);
+    }
+    if (data.planJson) {
+      try { planJsonEl.textContent = JSON.stringify(JSON.parse(data.planJson), null, 2); }
+      catch(_) { planJsonEl.textContent = data.planJson; }
+    }
+  } catch(e) { console.warn('Failed to fetch run detail', e); }
+}
+
+async function fetchPlanJson() {
+  if (!runId) return;
+  try {
+    const res = await fetch('/api/runs/' + runId);
+    const data = await res.json();
+    if (data.planJson) {
+      try { planJsonEl.textContent = JSON.stringify(JSON.parse(data.planJson), null, 2); }
+      catch(_) { planJsonEl.textContent = data.planJson; }
+    }
+  } catch(e) {}
+}
+
+async function fetchDbSnapshot() {
+  if (!runId) return;
+  try {
+    const res = await fetch('/api/runs/' + runId + '/db');
+    const data = await res.json();
+    renderDbSnapshot(data);
+  } catch(e) {
+    dbContentEl.innerHTML = '<span style="color:var(--red);font-size:0.85rem;">Failed to fetch DB snapshot.</span>';
+  }
+}
+
+refreshDbBtn.onclick = () => fetchDbSnapshot();
+
+function renderDbSnapshot(data) {
+  dbContentEl.innerHTML = '';
+  const tables = [
+    { name: 'sessions (1 row)', key: 'session', isObject: true },
+    { name: 'runs (1 row)', key: 'run', isObject: true },
+    { name: 'messages', key: 'messages' },
+    { name: 'tasks', key: 'tasks' },
+    { name: 'task_dependencies', key: 'taskDependencies' },
+    { name: 'task_steps', key: 'taskSteps' },
+    { name: 'events', key: 'events' },
+    { name: 'memory', key: 'memory' },
+  ];
+  for (const tbl of tables) {
+    let rows;
+    if (tbl.isObject) { rows = [data[tbl.key]]; } else { rows = data[tbl.key] || []; }
+    if (!rows || rows.length === 0 || !rows[0]) continue;
+
+    const section = document.createElement('div');
+    section.className = 'db-section';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'db-table-name';
+    nameEl.innerHTML = esc(tbl.name) + ' <span class="count">' + rows.length + ' row' + (rows.length > 1 ? 's' : '') + '</span>';
+    section.appendChild(nameEl);
+
+    const cols = Object.keys(rows[0]);
+    let tableHtml = '<table class="db-table"><thead><tr>';
+    for (const c of cols) tableHtml += '<th>' + esc(c) + '</th>';
+    tableHtml += '</tr></thead><tbody>';
+    for (const row of rows) {
+      tableHtml += '<tr>';
+      for (const c of cols) {
+        let val = row[c];
+        if (val === null || val === undefined) val = '';
+        if (typeof val === 'object') val = JSON.stringify(val);
+        const display = String(val).length > 100 ? String(val).substring(0, 100) + '...' : String(val);
+        tableHtml += '<td title="' + esc(String(val)) + '">' + esc(display) + '</td>';
+      }
+      tableHtml += '</tr>';
+    }
+    tableHtml += '</tbody></table>';
+    section.innerHTML += tableHtml;
+    dbContentEl.appendChild(section);
+  }
+}
+
+initGraph();
+</script>
+</body>
+</html>
