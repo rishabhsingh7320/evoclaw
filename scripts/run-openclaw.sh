@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run an OpenClaw backend with API keys from repo root .env.
 # Usage: ./scripts/run-openclaw.sh <backend-dir>
-# Example: ./scripts/run-openclaw.sh openclaw4/backend
+# Example: ./scripts/run-openclaw.sh evoclaw/v4/backend
 
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

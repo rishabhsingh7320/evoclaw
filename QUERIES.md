@@ -4,7 +4,7 @@ Use these queries to demonstrate what each version **can** and **cannot** do, an
 
 ---
 
-## OpenClaw 1 (`openclawdemo` – port 8080)
+## OpenClaw 1 (`evoclaw/v1/backend` – port 8080)
 
 Single manager agent; read/think/act loop (max 3 steps); tools: search (mock), math, file. No task DAG, no LLM planning.
 
@@ -23,7 +23,7 @@ Single manager agent; read/think/act loop (max 3 steps); tools: search (mock), m
 
 ---
 
-## OpenClaw 2 (`omenclawdemo2` – port 8081)
+## OpenClaw 2 (`evoclaw/v2/backend` – port 8081)
 
 LLM plans a task DAG; executes tasks in topological order; tools: search (Tavily), file, math, http. No recursion, no exec, no memory, no browser.
 
@@ -45,7 +45,7 @@ LLM plans a task DAG; executes tasks in topological order; tools: search (Tavily
 
 ---
 
-## OpenClaw 3 (`openclaw3` – port 8082)
+## OpenClaw 3 (`evoclaw/v3/backend` – port 8082)
 
 Everything in v2 plus: tool allow/deny + profiles, per-session run queue, sandboxed exec tool, memory tool, loop-detection, hooks, context compaction, optional parallel execution, optional sub-run.
 
@@ -67,7 +67,7 @@ Everything in v2 plus: tool allow/deny + profiles, per-session run queue, sandbo
 
 ---
 
-## OpenClaw 4 (`openclaw4` – port 8083)
+## OpenClaw 4 (`evoclaw/v4/backend` – port 8083)
 
 Everything in v3 plus: browser tool (Playwright for Java) — navigate, snapshot (refs), click, type, press_key, screenshot.
 
@@ -99,16 +99,16 @@ Keys are stored in a **single file** at the repo root so every OpenClaw (and fut
 ```bash
 # From repo root: load keys, then run the backend you want
 source .env
-cd openclaw3/backend && mvn spring-boot:run
+cd evoclaw/v3/backend && mvn spring-boot:run
 # or
-cd openclaw4/backend && mvn spring-boot:run
+cd evoclaw/v4/backend && mvn spring-boot:run
 ```
 
 **Or use the helper script (sources .env for you):**
 
 ```bash
-./scripts/run-openclaw.sh openclaw3/backend   # port 8082
-./scripts/run-openclaw.sh openclaw4/backend   # port 8083
+./scripts/run-openclaw.sh evoclaw/v3/backend   # port 8082
+./scripts/run-openclaw.sh evoclaw/v4/backend   # port 8083
 ```
 
 ---
@@ -117,23 +117,23 @@ cd openclaw4/backend && mvn spring-boot:run
 
 ```bash
 # OpenClaw 1 (port 8080)
-cd openclawdemo/backend
-source ../../.env 2>/dev/null || true
+cd evoclaw/v1/backend
+source ../../../.env 2>/dev/null || true
 OPENAI_API_KEY=${OPENAI_API_KEY:-your-key} mvn spring-boot:run
 
 # OpenClaw 2 (port 8081)
-cd omenclawdemo2/backend
-source ../../.env 2>/dev/null || true
+cd evoclaw/v2/backend
+source ../../../.env 2>/dev/null || true
 OPENAI_API_KEY=${OPENAI_API_KEY:-your-key} TAVILY_API_KEY=${TAVILY_API_KEY:-your-tavily-key} mvn spring-boot:run
 
 # OpenClaw 3 (port 8082) — use shared .env
-./scripts/run-openclaw.sh openclaw3/backend
-# or: source .env && cd openclaw3/backend && mvn spring-boot:run
+./scripts/run-openclaw.sh evoclaw/v3/backend
+# or: source .env && cd evoclaw/v3/backend && mvn spring-boot:run
 
 # OpenClaw 4 (port 8083) — install Playwright browsers once, then from repo root:
-# mvn -f openclaw4/backend exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install chromium"
-./scripts/run-openclaw.sh openclaw4/backend
-# or: source .env && cd openclaw4/backend && mvn spring-boot:run
+# mvn -f evoclaw/v4/backend exec:java -e -D exec.mainClass=com.microsoft.playwright.CLI -D exec.args="install chromium"
+./scripts/run-openclaw.sh evoclaw/v4/backend
+# or: source .env && cd evoclaw/v4/backend && mvn spring-boot:run
 ```
 
 ### Tool Profile Examples (v3 & v4)

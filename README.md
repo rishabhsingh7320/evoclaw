@@ -1,13 +1,15 @@
-# AI Code / OpenClaw
+# Evoclaw — *Evolution of OpenClaw*
 
-Monorepo with **OpenClaw** demos (v1–v4): LLM orchestrators with tools, task DAGs, browser automation (v4), and full debugging UI.
+Monorepo with **OpenClaw v1–v4** under **`evoclaw/`**: LLM orchestrators with tools, task DAGs, browser automation (v4), and full debugging UI.
 
-| Project | Port | Description |
-|---------|------|-------------|
-| `backend/` or `openclawdemo` | 8080 | OpenClaw 1 – single agent |
-| `omenclawdemo2/` | 8081 | OpenClaw 2 – LLM task graph |
-| `openclaw3/` | 8082 | OpenClaw 3 – exec, memory, policies, sub-runs |
-| `openclaw4/` | 8083 | OpenClaw 4 – Playwright browser + live viewport |
+| Path | Port | Description |
+|------|------|-------------|
+| **`evoclaw/v1/backend`** | 8080 | OpenClaw 1 – single agent |
+| **`evoclaw/v2/backend`** | 8081 | OpenClaw 2 – LLM task graph |
+| **`evoclaw/v3/backend`** | 8082 | OpenClaw 3 – exec, memory, policies, sub-runs |
+| **`evoclaw/v4/backend`** | 8083 | OpenClaw 4 – Playwright browser + live viewport |
+
+See **`evoclaw/README.md`** for the version map and run commands.
 
 ## Docs
 
@@ -21,7 +23,7 @@ Copy `.env.example` to `.env` and add your keys. **`.env` is gitignored** — ne
 
 ```bash
 source .env
-./scripts/run-openclaw.sh openclaw4/backend
+./scripts/run-openclaw.sh evoclaw/v4/backend
 ```
 
 ## Author

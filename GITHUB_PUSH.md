@@ -6,7 +6,7 @@ I can’t log in to your GitHub from here. After the first commit is created loc
 
 1. Open https://github.com/new  
 2. Owner: **rishabhsingh7320**  
-3. Repository name: e.g. **`ai_code`** or **`openclaw`**  
+3. Repository name: e.g. **`evoclaw`**, **`openclaw`**, or **`ai_code`**  
 4. **Do not** add a README, .gitignore, or license (this repo already has them).  
 5. Click **Create repository**.
 

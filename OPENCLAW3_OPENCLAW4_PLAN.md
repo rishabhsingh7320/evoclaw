@@ -1,5 +1,8 @@
 # OpenClaw3 and OpenClaw4 Build Plan (with Full Debugging UI)
 
+> **Repo layout (current):** All four versions live under **`evoclaw/`** — v1 `evoclaw/v1/backend`, v2 `evoclaw/v2/backend`, v3 `evoclaw/v3/backend`, v4 `evoclaw/v4/backend`. See **`evoclaw/README.md`**.  
+> Historical references below to `omenclawdemo2/`, `openclaw3/`, `openclaw4/` describe the original copy-from paths when the plan was written.
+
 This document extends the build plan so that **all debugging and internal-viewing capabilities** from OpenClaw 1 and OpenClaw 2 are **preserved and extended** in OpenClaw 3 and OpenClaw 4, making it easy to explain each version.
 
 ---
