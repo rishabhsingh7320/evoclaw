@@ -2,6 +2,8 @@
 
 **Evoclaw** is the umbrella project for four generations of the OpenClaw LLM orchestrator demo. Each version lives in its own folder so you can run, compare, and extend them side by side.
 
+> **Full project objective and what each version adds:** see the root **[README.md](../README.md)** (complete overview, capability matrix, and doc index).
+
 | Folder | Version | Port | Codename / focus |
 |--------|---------|------|------------------|
 | **`v1/`** | OpenClaw 1 | **8080** | Single manager agent — mock search, math, file |
